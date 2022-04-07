@@ -2,6 +2,10 @@ import { plainToClass } from "class-transformer";
 import { Employee } from "../entities/Employee";
 import HttpException from "../exception/HttpException";
 import { EmployeeRepository } from "../repository/EmployeeRepository";
+import bcrypt from "bcrypt";
+import jsonwebtoken from "jsonwebtoken";
+import UserNotAuthorizedException from "../exception/UserNotAuthorizedException";
+import IncorrectUsernameOrPasswordException from "../exception/IncorrectUsernameOrPasswordException";
 
 export class EmployeeService {
     constructor(
@@ -21,7 +25,9 @@ export class EmployeeService {
                 name: employeeDetails.name,
                 username: employeeDetails.username,
                 age: employeeDetails.age,
+                password: employeeDetails.password ? await bcrypt.hash(employeeDetails.password,10):'',
                 departmentId: employeeDetails.departmentId,
+                rolesid: employeeDetails.rolesid,
                 isActive: true,
             });
             const save = await this.employeeRepository.saveEmployeeDetails(newEmployee);
@@ -59,4 +65,37 @@ export class EmployeeService {
         // const employeeDetails = await this.employeeRepository.getEmployeeById(employeeId);
         // return this.employeeRepository.hardRemoveEmployee(employeeDetails);
     }
+    public employeeLogin = async (
+        username: string,
+        password: string
+      ) => {
+        const employeeDetails = await this.employeeRepository.getEmployeeByUsername(
+          username
+        );
+        if (!employeeDetails) {
+          throw new UserNotAuthorizedException();
+        }
+        
+        if (await bcrypt.compare(password, employeeDetails.password)) {
+          let payload = {
+            "custom:id": employeeDetails.id,
+            "custom:email": employeeDetails.username,
+            "customRole":employeeDetails.rolesId
+          };
+          const token = this.generateAuthTokens(payload);
+          return {
+            idToken: token,
+            employeeDetails,
+          };
+        } else {
+          throw new IncorrectUsernameOrPasswordException();
+        }
+      };
+
+
+        private generateAuthTokens = (payload: any) => {
+            return jsonwebtoken.sign(payload, process.env.JWT_TOKEN_SECRET,{
+                expiresIn: process.env.ID_TOKEN_VALIDITY,
+    });
+};
 }

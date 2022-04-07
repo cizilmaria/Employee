@@ -5,6 +5,10 @@ import validationMiddleware from "../middleware/validationMiddleware";
 import { EmployeeService } from "../services/EmployeeService";
 import { AbstractController } from "../util/rest/controller";
 import RequestWithUser from "../util/rest/request";
+import IncorrectUsernameOrPasswordException from "../exception/IncorrectUsernameOrPasswordException";
+import UserNotAuthorizedException from "../exception/UserNotAuthorizedException";
+import authorize from "../middleware/authorize";
+import authorizeadmin from "../middleware/AuthorizeRole";
 /**
  * Implementation of the EmployeeController route.
  *
@@ -21,6 +25,7 @@ class EmployeeController extends AbstractController {
   protected initializeRoutes = (): void => {
     this.router.get(
       `${this.path}`,
+      authorize(),
       this.asyncRouteHandler(this.getAllEmployees)
     );
     this.router.get(
@@ -31,15 +36,22 @@ class EmployeeController extends AbstractController {
       `${this.path}`,
       // validationMiddleware(CreateEmployeeDto, APP_CONSTANTS.body),
       // this.asyncRouteHandler(this.createEmployee)
+      authorizeadmin(),
       this.createEmployee
     );
     this.router.put(
       `${this.path}/:employeeId`,
+      // authorizeadmin(),
       this.asyncRouteHandler(this.updateEmployee)
     );
     this.router.delete(
       `${this.path}/:employeeId`,
+      authorizeadmin(),
       this.asyncRouteHandler(this.deleteEmployee)
+    );
+    this.router.post(
+      `${this.path}/login`,
+      this.asyncRouteHandler(this.login)
     );
   }
 
@@ -59,7 +71,7 @@ class EmployeeController extends AbstractController {
     response: Response,
     next: NextFunction
   ) => {
-    const data = await this.employeeService.getEmployeeById(request.params.id);
+    const data = await this.employeeService.getEmployeeById(request.params.employeeId);
     response.send(
       this.fmt.formatResponse(data, Date.now() - request.startTime, "OK")
     );
@@ -101,6 +113,17 @@ class EmployeeController extends AbstractController {
         this.fmt.formatResponse(data, Date.now() - request.startTime, "OK")
       );
   }
-}
 
+  private login = async (
+    request: RequestWithUser,
+    response: Response,
+    next: NextFunction
+  ) => {
+      const data = await this.employeeService.employeeLogin(request.body.username, request.body.password);
+      response.status(201).send(
+        this.fmt.formatResponse(data, Date.now() - request.startTime, "OK")
+      );
+    }
+  }
+  
 export default EmployeeController;
